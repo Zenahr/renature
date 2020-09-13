@@ -5,6 +5,45 @@ import {
   AnimationGroup,
 } from './types';
 import { rAF, update } from '../rAF';
+import { Entity } from '../forces';
+
+const animationStateCache = new Map<string, Record<number, Entity>>();
+
+function getCurrentMotionValues<C>(
+  initialState: StatefulAnimatingElement<C>['state'],
+  id: string,
+  i: number
+) {
+  // Check if mover's motion values are stored in the cache.
+  if (animationStateCache.has(id) && animationStateCache.get(id)?.[i]) {
+    // Obtain cached values for velocity and position.
+    const { velocity, position } = animationStateCache.get(id)?.[i] ?? {
+      velocity: initialState.mover.velocity,
+      position: initialState.mover.position,
+    };
+
+    return {
+      ...initialState,
+      mover: {
+        ...initialState.mover,
+        velocity,
+        position,
+      },
+    };
+  }
+
+  return initialState;
+}
+
+function clearMotionValuesFromCache(id: string, i: number) {
+  if (animationStateCache.has(id)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const { [i]: _state, ...rest } = animationStateCache.get(id)!;
+    console.log('Clearing cache', JSON.stringify(rest));
+
+    animationStateCache.set(id, rest);
+  }
+}
 
 /**
  * A function to take in a set of elements and begin animating them.
@@ -16,15 +55,19 @@ export function group<C>(
   initialState: (
     element: AnimatingElement<C>
   ) => StatefulAnimatingElement<C>['state'],
-  callbacks: AnimationCallbacks<C>
+  callbacks: AnimationCallbacks<C>,
+  id: string
 ): AnimationGroup<C> {
   const animatingElements = new Set<StatefulAnimatingElement<C>>();
   let isFrameloopActive = false;
 
-  elements.forEach((element) => {
+  elements.forEach((element, i) => {
+    const initMotionValues = initialState(element);
+    const state = getCurrentMotionValues(initMotionValues, id, i);
+
     const animatingElement: StatefulAnimatingElement<C> = {
       ...element,
-      state: initialState(element),
+      state,
     };
 
     // If the element to animate is not in the Set...
@@ -42,7 +85,10 @@ export function group<C>(
 
   let startFn: AnimationGroup<C>['start'] = () => {};
   let pauseFn: AnimationGroup<C>['pause'] = () => {};
-  let stopFn: AnimationGroup<C>['stop'] = () => {};
+  let stopFn: (
+    element: StatefulAnimatingElement<C>,
+    i: number
+  ) => void = () => {};
 
   // Only start the frameloop if there are elements to animate.
   if (animatingElements.size > 0) {
@@ -55,6 +101,7 @@ export function group<C>(
           update<C>({
             animatingElements,
             ...callbacks,
+            clearMotionValuesFromCache: () => clearMotionValuesFromCache(id, 0),
           })
         );
       }
@@ -81,7 +128,36 @@ export function group<C>(
       isFrameloopActive = false;
     };
 
-    stopFn = (element: StatefulAnimatingElement<C>) => {
+    stopFn = (element: StatefulAnimatingElement<C>, i: number) => {
+      // If the animation was interrupted before completing, cache its motion values.
+      if (!element.state.complete) {
+        console.log(
+          'Writing values to cache',
+          JSON.stringify({
+            velocity: element.state.mover.velocity,
+            position: element.state.mover.position,
+          })
+        );
+
+        animationStateCache.set(id, {
+          [i]: {
+            ...element.state.mover,
+            acceleration: [0, 0],
+            velocity: [
+              element.config.initialVelocity - element.state.mover.velocity[0],
+              0,
+            ],
+            position: [
+              element.state.maxDistance - element.state.mover.position[0],
+              0,
+            ],
+          },
+        });
+        // On completion, ensure we remove the element from the cache.
+      } else if (element.state.complete && animationStateCache.has(id)) {
+        clearMotionValuesFromCache(id, i);
+      }
+
       if (animatingElements.has(element)) {
         animatingElements.delete(element);
       }

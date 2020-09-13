@@ -65,13 +65,14 @@ function checkReverseFrictionPlayState({
 function checkFrictionStoppingCondition({
   state,
 }: StatefulAnimatingElement<FrictionConfig>) {
-  return state.mover.velocity[0] <= 0;
+  return state.mover.velocity[0] <= 0.01;
 }
 
 // A function to take in a set of elements and begin animating them
 // according to the force of friction.
 export function frictionGroup(
-  elements: AnimatingElement<FrictionConfig>[]
+  elements: AnimatingElement<FrictionConfig>[],
+  id: string
 ): AnimationGroup<FrictionConfig> {
   const initialState = (
     element: AnimatingElement<FrictionConfig>
@@ -92,9 +93,14 @@ export function frictionGroup(
     delayed: !!element.delay,
   });
 
-  return group(elements, initialState, {
-    checkReversePlayState: checkReverseFrictionPlayState,
-    applyForceForStep: applyFrictionForceForStep,
-    checkStoppingCondition: checkFrictionStoppingCondition,
-  });
+  return group(
+    elements,
+    initialState,
+    {
+      checkReversePlayState: checkReverseFrictionPlayState,
+      applyForceForStep: applyFrictionForceForStep,
+      checkStoppingCondition: checkFrictionStoppingCondition,
+    },
+    id
+  );
 }

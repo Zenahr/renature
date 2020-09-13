@@ -14,6 +14,7 @@ export function update<C>({
   checkReversePlayState,
   applyForceForStep,
   checkStoppingCondition,
+  clearMotionValuesFromCache,
 }: UpdateParams<C>) {
   return function loop(
     timestamp: DOMHighResTimeStamp,
@@ -59,6 +60,7 @@ export function update<C>({
       if (!element.infinite && checkStoppingCondition(element)) {
         element.onComplete();
         element.state.complete = true;
+        clearMotionValuesFromCache();
       } else {
         element.onUpdate({
           velocity: element.state.mover.velocity,

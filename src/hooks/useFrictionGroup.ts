@@ -1,4 +1,10 @@
-import { createRef, useMemo, useLayoutEffect, useCallback } from 'react';
+import {
+  createRef,
+  useRef,
+  useMemo,
+  useLayoutEffect,
+  useCallback,
+} from 'react';
 
 import { CSSPairs, getInterpolatorsForPairs } from '../parsers';
 import {
@@ -17,10 +23,14 @@ export type UseFrictionArgs = CSSPairs &
     config?: FrictionConfig;
   };
 
+let _id = 0;
+
 export const useFrictionGroup = <E extends HTMLElement | SVGElement = any>(
   n: number,
   fn: (index: number) => UseFrictionArgs
 ): [{ ref: React.RefObject<E | null> }[], Controller] => {
+  const hookId = useRef(`friction_${_id++}`);
+
   const { elements, start, stop, pause } = useMemo(() => {
     const animatingElements: AnimatingElement<
       FrictionConfig,
@@ -93,14 +103,14 @@ export const useFrictionGroup = <E extends HTMLElement | SVGElement = any>(
       };
     });
 
-    return frictionGroup(animatingElements);
+    return frictionGroup(animatingElements, hookId.current);
   }, [n, fn]);
 
   useLayoutEffect(() => {
     start();
 
     return () => {
-      elements.forEach(stop);
+      elements.forEach((element, i) => stop(element, i));
     };
   }, [start, stop, elements]);
 
